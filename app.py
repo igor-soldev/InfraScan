@@ -19,11 +19,12 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 app.config['RESULTS_DIR'] = os.path.join(os.getcwd(), 'scan_results')
 app.config['FEEDBACK_FILE'] = os.path.join(os.getcwd(), 'feedback', 'reviews.json')
 app.config['SLACK_WEBHOOK_URL'] = os.getenv('SLACK_WEBHOOK_URL', '')
 
+# Cache busting - changes on each deployment/restart
 STATIC_VERSION = str(int(time.time()))
 
 # Ensure results and feedback directories exist
@@ -108,6 +109,7 @@ def scan_github():
     repo_url = data.get('url')
     scanner_type = data.get('scanner', 'regex')  # Default to regex scanner
     recipient = data.get('recipient', '')  # Optional recipient field
+    is_private = data.get('is_private', False)  # Optional private scan flag
     
     if not repo_url:
         return jsonify({'error': 'No URL provided'}), 400
@@ -195,7 +197,8 @@ def scan_github():
             'repository_url': repo_url,
             'repository_name': repo_name,
             'recipient': recipient,
-            'scan_timestamp': scan_timestamp
+            'scan_timestamp': scan_timestamp,
+            'is_private': is_private
         })
 
         # Send Slack notification if enabled
@@ -288,6 +291,13 @@ def save_results():
         'analysis': data.get('analysis')
     }
     
+    # Ensure is_private is preserved in metadata
+    if 'metadata' not in save_data or save_data['metadata'] is None:
+        save_data['metadata'] = {}
+    
+    if 'is_private' in data:
+        save_data['metadata']['is_private'] = data.get('is_private')
+    
     with open(file_path, 'w') as f:
         json.dump(save_data, f)
 
@@ -322,6 +332,72 @@ def get_results(result_id):
         data = json.load(f)
     
     return jsonify(data)
+
+
+def _extract_grade(grade_obj):
+    """Safely extract grade letter and percentage from a grade dict."""
+    if not grade_obj:
+        return None
+    return {
+        'letter': grade_obj.get('letter', '?'),
+        'percentage': grade_obj.get('percentage', 0)
+    }
+
+
+@app.route('/api/scans/recent', methods=['GET'])
+def get_recent_scans():
+    """Return a list of the most recent saved scans, newest first."""
+    results_dir = app.config['RESULTS_DIR']
+    scans = []
+
+    try:
+        files = [
+            f for f in os.listdir(results_dir)
+            if f.endswith('.json')
+        ]
+    except FileNotFoundError:
+        return jsonify({'scans': []})
+
+    for filename in files:
+        file_path = os.path.join(results_dir, filename)
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+
+            metadata = data.get('metadata', {}) or {}
+            repo_url = metadata.get('repository_url')
+            scan_timestamp = metadata.get('scan_timestamp')
+            is_private = metadata.get('is_private', False)
+
+            # Skip entries without essential data or private scans
+            if not repo_url or not scan_timestamp or is_private:
+                continue
+
+            result_id = filename.replace('.json', '')
+
+            scan_entry = {
+                'id': result_id,
+                'repository_url': repo_url,
+                'repository_name': metadata.get('repository_name') or repo_url.rstrip('/').split('/')[-1],
+                'recipient': metadata.get('recipient', ''),
+                'scan_timestamp': scan_timestamp,
+                'scanner_type': data.get('summary', {}).get('scanner_used', '') if data.get('summary') else '',
+                'total_findings': data.get('summary', {}).get('total', 0) if data.get('summary') else 0,
+                'overall_grade': _extract_grade(data.get('overall')),
+                'cost_grade': _extract_grade(data.get('cost')),
+                'security_grade': _extract_grade(data.get('security')),
+                'container_grade': _extract_grade(data.get('container')),
+            }
+            scans.append(scan_entry)
+        except Exception as e:
+            print(f"Error reading scan file {filename}: {e}")
+            continue
+
+    # Sort by scan_timestamp descending, newest first
+    scans.sort(key=lambda s: s['scan_timestamp'], reverse=True)
+
+    # Return only the 50 most recent
+    return jsonify({'scans': scans[:50]})
 
 @app.route('/api/feedback', methods=['POST'])
 def submit_feedback():

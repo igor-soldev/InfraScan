@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareUrlInput = document.getElementById('share-url');
     const copyShareBtn = document.getElementById('copy-share-btn');
     const scanInputContainer = document.getElementById('scan-input-container');
+    const privateScanToggle = document.getElementById('private-scan-toggle');
     const newScanBtn = document.getElementById('new-scan-btn');
     const mainContainer = document.querySelector('.container');
     const scrollTopBtn = document.getElementById('scroll-to-top');
@@ -33,6 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMetadata = null;
     let currentGradeReport = null;
     let hasAutoOpenedFeedback = false;
+
+    // Pagination State for Recent Scans
+    let allRecentScans = [];
+    let recentScansCurrentPage = 1;
+    const recentScansPageSize = 5;
 
     // Check scanner availability on load
     checkScannerStatus();
@@ -55,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (containersOption) containersOption.disabled = true;
                 if (checkovOption) checkovOption.disabled = true;
                 if (comprehensiveOption) comprehensiveOption.disabled = true;
-                
+
                 warnings.push('⚠️ Security scanners not installed (Checkov & container scanner)');
             } else {
                 // At least one is available, but warn about missing ones
@@ -144,6 +150,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (landingInfo) landingInfo.classList.remove('collapsed');
                     if (mainContainer) mainContainer.classList.remove('expanded');
                 }
+            } else if (targetTab === 'recent-scans') {
+                resultsArea.classList.add('hidden');
+                if (mainContainer) mainContainer.classList.remove('expanded');
+                loadRecentScans();
             } else {
                 resultsArea.classList.add('hidden');
                 if (mainContainer) mainContainer.classList.remove('expanded');
@@ -183,6 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const scanner = scannerTypeSelect.value;
         const recipient = recipientInput ? recipientInput.value.trim() : '';
+        const isPrivate = privateScanToggle ? privateScanToggle.checked : false;
 
         await performScan('/api/scan/github', {
             method: 'POST',
@@ -192,7 +203,8 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({
                 url,
                 scanner,
-                recipient
+                recipient,
+                is_private: isPrivate
             })
         });
     });
@@ -218,7 +230,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     cost: currentGradeReport ? currentGradeReport.cost : null,
                     security: currentGradeReport ? currentGradeReport.security : null,
                     container: currentGradeReport ? currentGradeReport.container : null,
-                    analysis: currentGradeReport ? currentGradeReport.analysis : null
+                    analysis: currentGradeReport ? currentGradeReport.analysis : null,
+                    is_private: currentMetadata ? currentMetadata.is_private : false
                 })
             });
             const data = await response.json();
@@ -288,6 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             displayResults(data.results, data.summary, data.metadata, currentGradeReport);
 
+            // Auto-save scan so it appears in Recent Scans history
+            autoSaveScan(data);
+
             // Reset share state
             shareLinkContainer.classList.add('hidden');
             shareBtn.textContent = 'Share Results';
@@ -300,6 +316,185 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             loading.classList.add('hidden');
         }
+    }
+
+    async function autoSaveScan(data) {
+        try {
+            await fetch('/api/results/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    results: data.results,
+                    summary: data.summary,
+                    metadata: data.metadata,
+                    overall: data.overall,
+                    cost: data.cost,
+                    security: data.security,
+                    container: data.container,
+                    analysis: data.analysis,
+                    is_private: data.metadata ? data.metadata.is_private : false
+                })
+            });
+        } catch (e) {
+            // Silent fail – auto-save is best-effort
+            console.warn('Auto-save failed:', e);
+        }
+    }
+
+    async function loadRecentScans() {
+        const loadingEl = document.getElementById('recent-scans-loading');
+        const emptyEl = document.getElementById('recent-scans-empty');
+        const listEl = document.getElementById('recent-scans-list');
+        const paginationEl = document.getElementById('recent-scans-pagination');
+
+        if (!listEl) return;
+
+        loadingEl.classList.remove('hidden');
+        emptyEl.classList.add('hidden');
+        if (paginationEl) paginationEl.classList.add('hidden');
+        listEl.innerHTML = '';
+
+        try {
+            const response = await fetch('/api/scans/recent');
+            const data = await response.json();
+            allRecentScans = data.scans || [];
+            recentScansCurrentPage = 1;
+
+            loadingEl.classList.add('hidden');
+
+            if (allRecentScans.length === 0) {
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+
+            displayRecentScansPage();
+        } catch (e) {
+            loadingEl.classList.add('hidden');
+            listEl.innerHTML = `<p class="recent-scans-error">Could not load scan history.</p>`;
+        }
+    }
+
+    function displayRecentScansPage() {
+        const listEl = document.getElementById('recent-scans-list');
+        const paginationEl = document.getElementById('recent-scans-pagination');
+        if (!listEl) return;
+
+        const start = (recentScansCurrentPage - 1) * recentScansPageSize;
+        const end = start + recentScansPageSize;
+        const pageScans = allRecentScans.slice(start, end);
+
+        listEl.innerHTML = pageScans.map(scan => renderScanHistoryCard(scan)).join('');
+
+        if (allRecentScans.length > recentScansPageSize) {
+            if (paginationEl) paginationEl.classList.remove('hidden');
+            updatePaginationControls();
+        } else {
+            if (paginationEl) paginationEl.classList.add('hidden');
+        }
+    }
+
+    function updatePaginationControls() {
+        const prevBtn = document.getElementById('prev-page-btn');
+        const nextBtn = document.getElementById('next-page-btn');
+        const pageNumbers = document.getElementById('page-numbers');
+
+        const totalPages = Math.ceil(allRecentScans.length / recentScansPageSize);
+
+        if (prevBtn) prevBtn.disabled = recentScansCurrentPage === 1;
+        if (nextBtn) nextBtn.disabled = recentScansCurrentPage === totalPages;
+
+        if (pageNumbers) {
+            let html = '';
+            // Show up to 5 page buttons
+            let startPage = Math.max(1, recentScansCurrentPage - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+            if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<div class="page-number ${i === recentScansCurrentPage ? 'active' : ''}" data-page="${i}">${i}</div>`;
+            }
+
+            if (totalPages > 1) {
+                html += `<span class="pagination-info">Page ${recentScansCurrentPage} of ${totalPages}</span>`;
+            }
+
+            pageNumbers.innerHTML = html;
+
+            // Add listeners to page numbers
+            pageNumbers.querySelectorAll('.page-number').forEach(btn => {
+                btn.onclick = () => {
+                    recentScansCurrentPage = parseInt(btn.dataset.page);
+                    displayRecentScansPage();
+                    document.getElementById('recent-scans-tab').scrollTop = 0;
+                };
+            });
+        }
+    }
+
+    // Add event listeners for pagination buttons
+    const prevPageBtn = document.getElementById('prev-page-btn');
+    const nextPageBtn = document.getElementById('next-page-btn');
+
+    if (prevPageBtn) {
+        prevPageBtn.onclick = () => {
+            if (recentScansCurrentPage > 1) {
+                recentScansCurrentPage--;
+                displayRecentScansPage();
+                document.getElementById('recent-scans-tab').scrollTop = 0;
+            }
+        };
+    }
+
+    if (nextPageBtn) {
+        nextPageBtn.onclick = () => {
+            const totalPages = Math.ceil(allRecentScans.length / recentScansPageSize);
+            if (recentScansCurrentPage < totalPages) {
+                recentScansCurrentPage++;
+                displayRecentScansPage();
+                document.getElementById('recent-scans-tab').scrollTop = 0;
+            }
+        };
+    }
+
+    function renderScanHistoryCard(scan) {
+        const gradeColor = { A: '#10b981', B: '#3b82f6', C: '#f59e0b', D: '#ef4444', F: '#dc2626' };
+
+        const gradePill = (grade, label) => {
+            if (!grade) return '';
+            const color = gradeColor[grade.letter] || '#6b7280';
+            return `<span class="grade-pill" style="background:${color}22; border-color:${color}; color:${color}" title="${label}: ${grade.percentage}%">${label} ${grade.letter}</span>`;
+        };
+
+        const scannerLabel = formatScannerName(scan.scanner_type) || scan.scanner_type || 'Unknown';
+        const recipientBadge = scan.recipient
+            ? `<span class="scan-recipient">👤 ${escapeHtml(scan.recipient)}</span>`
+            : '';
+
+        const viewUrl = `${window.location.origin}${window.location.pathname}?scan_id=${scan.id}`;
+
+        return `
+        <div class="scan-history-card">
+            <div class="scan-history-main">
+                <a class="scan-repo-name" href="${escapeHtml(scan.repository_url)}" target="_blank" rel="noopener noreferrer">
+                    <span class="scan-repo-icon">📦</span>${escapeHtml(scan.repository_name)}
+                </a>
+                <div class="scan-grades">
+                    ${gradePill(scan.overall_grade, 'Overall')}
+                    ${gradePill(scan.cost_grade, 'Cost')}
+                    ${gradePill(scan.security_grade, 'Sec')}
+                    ${scan.container_grade ? gradePill(scan.container_grade, 'Container') : ''}
+                </div>
+            </div>
+            <div class="scan-history-meta">
+                <span class="scan-date">🕐 ${escapeHtml(scan.scan_timestamp)}</span>
+                <span class="scan-type">🔬 ${escapeHtml(scannerLabel)}</span>
+                <span class="scan-findings">⚠️ ${scan.total_findings} findings</span>
+                ${recipientBadge}
+            </div>
+            <div class="scan-history-actions">
+                <a class="scan-view-btn" href="${viewUrl}" target="_blank">View Full Report →</a>
+            </div>
+        </div>`;
     }
 
     function displayResults(results, summary, metadata, gradeReport) {
@@ -477,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${findings.map(f => {
                 // Different display for different scanners
                 let displayText = `📄 ${f.file}${f.line ? `:${f.line}` : ''}`;
-                
+
                 if (f.scanner === 'checkov' && f.match_content && f.match_content.startsWith('Resource: ')) {
                     // Checkov - show resource name
                     const resourceName = f.match_content.replace('Resource: ', '');
@@ -487,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const cveNumber = f.rule_id || 'UNKNOWN';
                     displayText = `🐳 ${f.image}<br/><span style="color: var(--text-secondary); font-size: 0.9em;">Package: ${f.package}@${f.package_version}</span><br/><span style="color: var(--warning); font-size: 0.85em; font-weight: 500;">${cveNumber}</span>`;
                 }
-                
+
                 return `
                         <div class="occurrence-item">
                             <strong>${displayText}</strong>
@@ -544,11 +739,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const totalVulns = findings.length;
 
             // Determine highest severity for border color
-            const highestSeverity = 
+            const highestSeverity =
                 severityCount.Critical > 0 ? 'Critical' :
-                severityCount.High > 0 ? 'High' :
-                severityCount.Medium > 0 ? 'Medium' :
-                severityCount.Low > 0 ? 'Low' : '';
+                    severityCount.High > 0 ? 'High' :
+                        severityCount.Medium > 0 ? 'Medium' :
+                            severityCount.Low > 0 ? 'Low' : '';
 
             // Group findings by severity for display
             const bySeverity = {
@@ -559,11 +754,11 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             // Determine which severity group to auto-expand (highest with findings)
-            const firstNonEmptySeverity = 
+            const firstNonEmptySeverity =
                 bySeverity.Critical.length > 0 ? 'Critical' :
-                bySeverity.High.length > 0 ? 'High' :
-                bySeverity.Medium.length > 0 ? 'Medium' :
-                bySeverity.Low.length > 0 ? 'Low' : '';
+                    bySeverity.High.length > 0 ? 'High' :
+                        bySeverity.Medium.length > 0 ? 'Medium' :
+                            bySeverity.Low.length > 0 ? 'Low' : '';
 
             return `
                 <div class="image-card ${highestSeverity}">
@@ -586,14 +781,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="image-card-content" id="${imageId}" style="display: none;">
                         ${Object.entries(bySeverity).map(([severity, vulns]) => {
-                            if (vulns.length === 0) return '';
-                            const severityIcon = { 'Critical': '🔴', 'High': '🟠', 'Medium': '🟡', 'Low': '⚪' };
-                            const severityGroupId = `severity-${imageId}-${severity}`;
-                            
-                            // Auto-expand the highest severity group with findings
-                            const isExpanded = severity === firstNonEmptySeverity;
-                            
-                            return `
+                if (vulns.length === 0) return '';
+                const severityIcon = { 'Critical': '🔴', 'High': '🟠', 'Medium': '🟡', 'Low': '⚪' };
+                const severityGroupId = `severity-${imageId}-${severity}`;
+
+                // Auto-expand the highest severity group with findings
+                const isExpanded = severity === firstNonEmptySeverity;
+
+                return `
                                 <div class="severity-group">
                                     <div class="severity-group-header" onclick="toggleSeverityGroup('${severityGroupId}')">
                                         <span>${severityIcon[severity]} ${severity} (${vulns.length})</span>
@@ -601,8 +796,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </div>
                                     <div class="cve-list" id="${severityGroupId}" style="display: ${isExpanded ? 'flex' : 'none'};">
                                         ${vulns.map((v, idx) => {
-                                            const cveId = `cve-${imageId}-${severity}-${idx}`;
-                                            return `
+                    const cveId = `cve-${imageId}-${severity}-${idx}`;
+                    return `
                                                 <div class="cve-item">
                                                     <div class="cve-summary" onclick="toggleCVE('${cveId}')">
                                                         <span class="cve-id">${v.rule_id}</span>
@@ -628,11 +823,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                                     </div>
                                                 </div>
                                             `;
-                                        }).join('')}
+                }).join('')}
                                     </div>
                                 </div>
                             `;
-                        }).join('')}
+            }).join('')}
                     </div>
                 </div>
             `;
@@ -677,25 +872,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function linkifyUrls(text, maxLength = null) {
         if (!text) return '';
-        
+
         // First escape HTML to prevent XSS
         let escaped = escapeHtml(text);
-        
+
         // Find URLs and replace them with links
         const urlPattern = /(https?:\/\/[^\s<]+)/g;
         escaped = escaped.replace(urlPattern, (fullUrl) => {
             // Keep full URL for href
-            const displayUrl = maxLength && fullUrl.length > maxLength 
-                ? fullUrl.substring(0, maxLength) + '...' 
+            const displayUrl = maxLength && fullUrl.length > maxLength
+                ? fullUrl.substring(0, maxLength) + '...'
                 : fullUrl;
             return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="remediation-link">${displayUrl}</a>`;
         });
-        
+
         // If the whole text (not just URLs) needs truncating
         if (maxLength && text.length > maxLength && !text.match(urlPattern)) {
             escaped = truncateText(text, maxLength);
         }
-        
+
         return escaped;
     }
 
@@ -934,7 +1129,7 @@ function formatScannerName(name) {
 function toggleImageCard(imageId) {
     const content = document.getElementById(imageId);
     const icon = document.getElementById(`${imageId}-icon`);
-    
+
     if (content.style.display === 'none') {
         content.style.display = 'block';
         icon.textContent = '▼';
@@ -947,7 +1142,7 @@ function toggleImageCard(imageId) {
 function toggleSeverityGroup(severityGroupId) {
     const content = document.getElementById(severityGroupId);
     const icon = document.getElementById(`${severityGroupId}-icon`);
-    
+
     if (content.style.display === 'none') {
         content.style.display = 'flex';
         icon.textContent = '▼';
@@ -960,7 +1155,7 @@ function toggleSeverityGroup(severityGroupId) {
 function toggleCVE(cveId) {
     const details = document.getElementById(cveId);
     const icon = document.getElementById(`${cveId}-icon`);
-    
+
     if (details.style.display === 'none') {
         details.style.display = 'block';
         icon.textContent = '▲';

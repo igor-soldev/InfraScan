@@ -66,6 +66,7 @@
         <main>
             <div class="tabs">
                 <button class="tab-btn active" data-tab="github">Scan GitHub Repo</button>
+                <button class="tab-btn" data-tab="recent-scans" id="recent-scans-tab-btn">Recent Scans</button>
                 <button class="tab-btn" data-tab="release-notes">Release Notes</button>
             </div>
 
@@ -90,7 +91,21 @@
                             <option value="containers">Containers (Container Vulnerabilities Only)</option>
                             <option value="checkov">Security (IaC Security Only)</option>
                         </select>
-                        <small class="help-text"><strong>Comprehensive</strong> scans for AWS cost antipatterns, IaC security issues (Checkov), and container vulnerabilities.</small>
+                        <small class="help-text"><strong>Comprehensive</strong> scans for AWS cost antipatterns, IaC
+                            security issues (Checkov), and container vulnerabilities.</small>
+                    </div>
+
+                    <div class="input-group">
+                        <div class="toggle-container">
+                            <label class="switch">
+                                <input type="checkbox" id="private-scan-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="toggle-label-group">
+                                <span class="toggle-label">Private Mode</span>
+                                <small class="help-text">Scan won't appear in the "Recent Scans" list</small>
+                            </div>
+                        </div>
                     </div>
 
 
@@ -107,8 +122,47 @@
                 </div>
             </div>
 
+            <div class="tab-content" id="recent-scans-tab">
+                <div class="recent-scans-header">
+                    <h2 class="recent-scans-title">🕒 Recent Scans</h2>
+                    <p class="recent-scans-subtitle">History of the latest infrastructure scans performed by InfraScan.
+                    </p>
+                </div>
+                <div id="recent-scans-loading" class="recent-scans-loading hidden">
+                    <div class="spinner"></div>
+                    <p>Loading scan history...</p>
+                </div>
+                <div id="recent-scans-empty" class="recent-scans-empty hidden">
+                    <div class="empty-icon">📭</div>
+                    <p>No scans recorded yet.</p>
+                    <p class="empty-hint">Run your first scan on the <strong>Scan GitHub Repo</strong> tab!</p>
+                </div>
+                <div id="recent-scans-list" class="recent-scans-list"></div>
+
+                <div id="recent-scans-pagination" class="pagination-container hidden">
+                    <button id="prev-page-btn" class="pagination-btn" disabled>&larr; Previous</button>
+                    <div id="page-numbers" class="page-numbers"></div>
+                    <button id="next-page-btn" class="pagination-btn">Next &rarr;</button>
+                </div>
+            </div>
+
             <div class="tab-content" id="release-notes-tab">
                 <div class="release-notes-container">
+                    <div class="release-entry">
+                        <div class="release-header">
+                            <span class="version">v1.0.2</span>
+                            <span class="date">March 3, 2026</span>
+                        </div>
+                        <ul class="release-list">
+                            <li>Added **Private Mode** toggle: scans can now be performed without appearing in the
+                                public "Recent Scans" history</li>
+                            <li>Implemented **Pagination** for "Recent Scans" (5 scans per page) for improved navigation
+                                and history management</li>
+                            <li>Enhanced privacy controls: private scans are still accessible via their unique share
+                                links</li>
+                            <li>Optimized recent scans loading performance with frontend data slicing</li>
+                        </ul>
+                    </div>
                     <div class="release-entry">
                         <div class="release-header">
                             <span class="version">v1.0.1</span>
@@ -185,8 +239,10 @@
                 <button id="open-feedback-btn" class="text-link-btn">Leave Feedback</button>
             </p>
 
-            <p>InfraScan v1.0.1 &copy; 2026 SolDevelo. Advanced Infrastructure Auditor.</p>
-<p style="font-size: 0.9rem; opacity: 0.8; margin-top:4px;">This tool is <a href="https://github.com/SolDevelo/InfraScan" target="_blank"><strong>Open Source</strong></a> – contributions are welcome!</p>
+            <p>InfraScan v1.0.2 &copy; 2026 SolDevelo. Advanced Infrastructure Auditor.</p>
+            <p style="font-size: 0.9rem; opacity: 0.8; margin-top:4px;">This tool is <a
+                    href="https://github.com/SolDevelo/InfraScan" target="_blank"><strong>Open Source</strong></a> –
+                contributions are welcome!</p>
 
             <p>Made with &hearts; by <a
                     href="https://soldevelo.com?utm_source=infrascan&utm_medium=referral&utm_campaign=app_transition&utm_content=footer-logo"

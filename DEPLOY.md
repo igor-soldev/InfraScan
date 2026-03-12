@@ -39,7 +39,7 @@ newgrp docker
 1. Clone the repository:
    ```bash
    git clone <your-repo-url>
-   cd mvp-infra-scan
+   cd InfraScan
    ```
 2. Start the containers:
    ```bash
@@ -55,7 +55,7 @@ When you push new changes to your Git repository, follow these steps to update t
 1. Connect to your EC2 instance via SSH.
 2. Navigate to the project directory:
    ```bash
-   cd mvp-infra-scan
+   cd InfraScan
    ```
 3. Pull the latest changes:
    ```bash

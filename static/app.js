@@ -41,6 +41,30 @@ document.addEventListener('DOMContentLoaded', () => {
     let recentScansCurrentPage = 1;
     const recentScansPageSize = 5;
 
+    // Check for CLI Injected Data (Standalone HTML Report)
+    if (window.CLI_INJECTED_DATA) {
+        const data = window.CLI_INJECTED_DATA;
+        if (scanInputContainer) scanInputContainer.style.display = 'none';
+        if (document.querySelector('.tabs')) document.querySelector('.tabs').style.display = 'none';
+        if (landingInfo) landingInfo.style.display = 'none';
+        
+        const gradeReport = {
+            overall: data.overall,
+            cost: data.cost,
+            security: data.security,
+            container: data.container,
+            analysis: data.analysis
+        };
+        
+        displayResults(data.results, data.summary, data.metadata, gradeReport);
+        
+        // Hide elements that don't make sense in standalone report
+        if (newScanBtn) newScanBtn.style.display = 'none';
+        if (shareBtn) shareBtn.style.display = 'none';
+        
+        return; // Skip normal web app initialization
+    }
+
     // Check scanner availability on load
     checkScannerStatus();
     loadSharedResults();

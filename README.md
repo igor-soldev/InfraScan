@@ -56,6 +56,118 @@ Open browser at `http://localhost:5000`
 - **Severity Breakdown**: High/Medium/Low issue counts
 - **Smart Recommendations**: Actionable next steps based on your findings
 
+### CLI / CI/CD Usage
+
+InfraScan ships an official Docker image **`soldevelo/infrascancli`** — no Python installation or dependency management needed in your pipeline.
+
+```bash
+# Pull the image
+docker pull soldevelo/infrascancli:latest
+
+# Scan current directory and print results (text)
+docker run --rm -v $(pwd):/scan soldevelo/infrascancli
+
+# Generate a standalone interactive HTML report
+docker run --rm -v $(pwd):/scan soldevelo/infrascancli --format html --out /scan/report.html
+
+# Generate a JSON artifact
+docker run --rm -v $(pwd):/scan soldevelo/infrascancli --format json --out /scan/report.json
+
+# Fail CI if high or critical findings exist
+docker run --rm -v $(pwd):/scan soldevelo/infrascancli --scanner comprehensive --fail-on high_critical
+
+# Fail CI if overall grade is F
+docker run --rm -v $(pwd):/scan soldevelo/infrascancli --fail-on grade_f
+```
+
+**CLI Arguments:**
+- (positional): Directory to scan — in Docker use `/scan` (the default); locally use `.`
+- `--scanner`: `regex`, `checkov`, `containers`, `comprehensive` (default: `comprehensive`)
+- `--format`: `text`, `json`, or `html` — standalone interactive HTML report (default: `text`)
+- `--out`: Path where output file is saved (e.g. `/scan/report.html`)
+- `--fail-on`: Exit code 1 when: `any` findings, `high_critical` findings, or `grade_f`
+
+#### GitHub Actions
+
+```yaml
+name: InfraScan Security Audit
+on: [push, pull_request]
+
+jobs:
+  infrascan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run InfraScan
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/scan \
+            soldevelo/infrascancli:latest \
+            --scanner comprehensive \
+            --format html \
+            --out /scan/infrascan-report.html \
+            --fail-on high_critical
+
+      - name: Upload HTML Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infrascan-report
+          path: infrascan-report.html
+```
+
+#### GitLab CI
+
+```yaml
+infrascan:
+  image: docker:27
+  stage: test
+  services:
+    - docker:27-dind
+  script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/scan
+        soldevelo/infrascancli:latest
+        --scanner comprehensive
+        --format html
+        --out /scan/infrascan-report.html
+        --fail-on high_critical
+  artifacts:
+    when: always
+    paths:
+      - infrascan-report.html
+    expire_in: 1 week
+```
+
+#### Bitbucket Pipelines
+
+```yaml
+pipelines:
+  default:
+    - step:
+        name: InfraScan Audit
+        script:
+          - docker run --rm
+              -v $BITBUCKET_CLONE_DIR:/scan
+              soldevelo/infrascancli:latest
+              --scanner comprehensive
+              --format html
+              --out /scan/infrascan-report.html
+              --fail-on high_critical
+        artifacts:
+          - infrascan-report.html
+```
+
+> **Building images locally** (contributors):
+> ```bash
+> # Web app
+> docker build -f Dockerfile.web -t infrascan-web .
+> # CLI scanner
+> docker build -f Dockerfile.cli -t infrascancli .
+> ```
+
+
 ## 📊 Grading System
 
 InfraScan provides four separate grades:

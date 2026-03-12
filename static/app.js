@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (scanInputContainer) scanInputContainer.style.display = 'none';
         if (document.querySelector('.tabs')) document.querySelector('.tabs').style.display = 'none';
         if (landingInfo) landingInfo.style.display = 'none';
-        
+
         const gradeReport = {
             overall: data.overall,
             cost: data.cost,
@@ -55,13 +55,13 @@ document.addEventListener('DOMContentLoaded', () => {
             container: data.container,
             analysis: data.analysis
         };
-        
+
         displayResults(data.results, data.summary, data.metadata, gradeReport);
-        
+
         // Hide elements that don't make sense in standalone report
         if (newScanBtn) newScanBtn.style.display = 'none';
         if (shareBtn) shareBtn.style.display = 'none';
-        
+
         return; // Skip normal web app initialization
     }
 
@@ -1156,51 +1156,78 @@ document.addEventListener('DOMContentLoaded', () => {
             submitFeedbackBtn.textContent = 'Submit Feedback';
         }
     });
+    // Footer Copy Logic
+    document.addEventListener('click', (e) => {
+        const copyBtn = e.target.closest('.copy-btn, .copy-btn-premium');
+        if (copyBtn) {
+            const textToCopy = copyBtn.getAttribute('data-copy');
+            if (textToCopy) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalContent = copyBtn.innerHTML;
+                    const isPremium = copyBtn.classList.contains('copy-btn-premium');
+
+                    if (isPremium) {
+                        copyBtn.innerHTML = '<span>Copied!</span>';
+                    } else {
+                        copyBtn.textContent = 'Copied!';
+                    }
+
+                    copyBtn.classList.add('success');
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalContent;
+                        copyBtn.classList.remove('success');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                });
+            }
+        }
+    });
+
+    function formatScannerName(name) {
+        if (!name) return 'Unknown';
+        if (name === 'regex') return 'Cost';
+        if (name === 'checkov') return 'Security';
+        if (name === 'both') return 'Full Audit';
+        return name;
+    }
+
+    function toggleImageCard(imageId) {
+        const content = document.getElementById(imageId);
+        const icon = document.getElementById(`${imageId}-icon`);
+
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.textContent = '▼';
+        } else {
+            content.style.display = 'none';
+            icon.textContent = '▶';
+        }
+    }
+
+    function toggleSeverityGroup(severityGroupId) {
+        const content = document.getElementById(severityGroupId);
+        const icon = document.getElementById(`${severityGroupId}-icon`);
+
+        if (content.style.display === 'none') {
+            content.style.display = 'flex';
+            icon.textContent = '▼';
+        } else {
+            content.style.display = 'none';
+            icon.textContent = '▶';
+        }
+    }
+
+    function toggleCVE(cveId) {
+        const details = document.getElementById(cveId);
+        const icon = document.getElementById(`${cveId}-icon`);
+
+        if (details.style.display === 'none') {
+            details.style.display = 'block';
+            icon.textContent = '▲';
+        } else {
+            details.style.display = 'none';
+            icon.textContent = '▼';
+        }
+    }
 });
-
-function formatScannerName(name) {
-    if (!name) return 'Unknown';
-    if (name === 'regex') return 'Cost';
-    if (name === 'checkov') return 'Security';
-    if (name === 'both') return 'Full Audit';
-    return name;
-}
-
-function toggleImageCard(imageId) {
-    const content = document.getElementById(imageId);
-    const icon = document.getElementById(`${imageId}-icon`);
-
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        icon.textContent = '▼';
-    } else {
-        content.style.display = 'none';
-        icon.textContent = '▶';
-    }
-}
-
-function toggleSeverityGroup(severityGroupId) {
-    const content = document.getElementById(severityGroupId);
-    const icon = document.getElementById(`${severityGroupId}-icon`);
-
-    if (content.style.display === 'none') {
-        content.style.display = 'flex';
-        icon.textContent = '▼';
-    } else {
-        content.style.display = 'none';
-        icon.textContent = '▶';
-    }
-}
-
-function toggleCVE(cveId) {
-    const details = document.getElementById(cveId);
-    const icon = document.getElementById(`${cveId}-icon`);
-
-    if (details.style.display === 'none') {
-        details.style.display = 'block';
-        icon.textContent = '▲';
-    } else {
-        details.style.display = 'none';
-        icon.textContent = '▼';
-    }
-}

@@ -41,7 +41,9 @@ RUN mkdir -p /home/appuser/.local/bin && \
 
 # Install Python dependencies
 COPY --chown=appuser:appuser requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y pyston-lite pyston-lite-autoload || true && \
+    find /usr/local/lib/python3.9/site-packages/ -name "*pyston*.pth" -delete || true
 
 # Copy project files
 COPY --chown=appuser:appuser . /app/

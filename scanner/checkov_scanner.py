@@ -21,13 +21,18 @@ def is_checkov_available() -> bool:
     return CHECKOV_AVAILABLE
 
 
-def run_checkov_scan(directory_path: str, framework: str = "terraform") -> List[Dict[str, Any]]:
+def run_checkov_scan(
+    directory_path: str, 
+    framework: str = "terraform",
+    download_external_modules: bool = False
+) -> List[Dict[str, Any]]:
     """
     Run Checkov scan on a directory using subprocess.
     
     Args:
         directory_path: Path to directory containing IaC files
         framework: IaC framework to scan (terraform, cloudformation, kubernetes, etc.)
+        download_external_modules: Whether to download external modules
     
     Returns:
         List of findings in a normalized format
@@ -48,6 +53,9 @@ def run_checkov_scan(directory_path: str, framework: str = "terraform") -> List[
             "-o", "json",
             "--quiet"
         ]
+        
+        if download_external_modules:
+            cmd.append("--download-external-modules")
         
         # Run the command and capture output
         result = subprocess.run(

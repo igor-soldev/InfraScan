@@ -52,6 +52,12 @@ def setup_args():
     )
     
     parser.add_argument(
+        "--download-external-modules",
+        action="store_true",
+        help="Allow Checkov to download external modules (Terraform/etc)"
+    )
+    
+    parser.add_argument(
         "--version",
         action="version",
         version=f"InfraScan v{__version__}",
@@ -143,7 +149,11 @@ def main():
             print(f"Analyzing {target_path} with '{args.scanner}' scanner...")
             
         # Run Scanners
-        results, resource_count, recommendations = scan_directory(target_path, scanner_type=args.scanner)
+        results, resource_count, recommendations = scan_directory(
+            target_path, 
+            scanner_type=args.scanner,
+            download_external_modules=args.download_external_modules
+        )
         
         # Generate Report
         report_generator = ReportGenerator()

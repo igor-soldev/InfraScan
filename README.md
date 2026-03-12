@@ -58,26 +58,26 @@ Open browser at `http://localhost:5000`
 
 ### CLI / CI/CD Usage
 
-InfraScan ships an official Docker image **`soldevelo/infrascancli`** — no Python installation or dependency management needed in your pipeline.
+InfraScan ships an official Docker image **`soldevelo/infrascan`** — no Python installation or dependency management needed in your pipeline.
 
 ```bash
 # Pull the image
-docker pull soldevelo/infrascancli:latest
+docker pull soldevelo/infrascan:latest
 
 # Scan current directory and print results (text)
-docker run --rm -v $(pwd):/scan soldevelo/infrascancli
+docker run --rm -v $(pwd):/scan soldevelo/infrascan
 
 # Generate a standalone interactive HTML report
-docker run --rm -v $(pwd):/scan soldevelo/infrascancli --format html --out /scan/report.html
+docker run --rm -v $(pwd):/scan soldevelo/infrascan --format html --out /scan/report.html
 
 # Generate a JSON artifact
-docker run --rm -v $(pwd):/scan soldevelo/infrascancli --format json --out /scan/report.json
+docker run --rm -v $(pwd):/scan soldevelo/infrascan --format json --out /scan/report.json
 
 # Fail CI if high or critical findings exist
-docker run --rm -v $(pwd):/scan soldevelo/infrascancli --scanner comprehensive --fail-on high_critical
+docker run --rm -v $(pwd):/scan soldevelo/infrascan --scanner comprehensive --fail-on high_critical
 
 # Fail CI if overall grade is F
-docker run --rm -v $(pwd):/scan soldevelo/infrascancli --fail-on grade_f
+docker run --rm -v $(pwd):/scan soldevelo/infrascan --fail-on grade_f
 ```
 
 **CLI Arguments:**
@@ -103,7 +103,7 @@ jobs:
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/scan \
-            soldevelo/infrascancli:latest \
+            soldevelo/infrascan:latest \
             --scanner comprehensive \
             --format html \
             --out /scan/infrascan-report.html \
@@ -128,7 +128,7 @@ infrascan:
   script:
     - docker run --rm
         -v $CI_PROJECT_DIR:/scan
-        soldevelo/infrascancli:latest
+        soldevelo/infrascan:latest
         --scanner comprehensive
         --format html
         --out /scan/infrascan-report.html
@@ -150,7 +150,7 @@ pipelines:
         script:
           - docker run --rm
               -v $BITBUCKET_CLONE_DIR:/scan
-              soldevelo/infrascancli:latest
+              soldevelo/infrascan:latest
               --scanner comprehensive
               --format html
               --out /scan/infrascan-report.html
@@ -161,10 +161,8 @@ pipelines:
 
 > **Building images locally** (contributors):
 > ```bash
-> # Web app
-> docker build -f Dockerfile.web -t infrascan-web .
-> # CLI scanner
-> docker build -f Dockerfile.cli -t infrascancli .
+> # Build unified image
+> docker build -t soldevelo/infrascan .
 > ```
 
 

@@ -1,8 +1,0 @@
-# CLI-specific requirements (no web server)
-python-hcl2==4.3.2
-colorama==0.4.6
-gitpython
-checkov>=3.0.0
-PyYAML
-requests
-python-dotenv

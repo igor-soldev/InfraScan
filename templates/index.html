@@ -235,11 +235,11 @@
                                     </div>
                                     <div class="file-info">Terminal / Bash</div>
                                     <button class="copy-btn-premium"
-                                        data-copy="docker run --rm -v $(pwd):/scan soldevelo/infrascancli:latest">
+                                        data-copy="docker run --rm -v $(pwd):/scan soldevelo/infrascan:latest">
                                         <span>Copy</span>
                                     </button>
                                 </div>
-                                <pre><code>docker run --rm -v $(pwd):/scan soldevelo/infrascancli:latest</code></pre>
+                                <pre><code>docker run --rm -v $(pwd):/scan soldevelo/infrascan:latest</code></pre>
                             </div>
                             <p class="usage-note">💡 Mounts your current directory to <code>/scan</code> and provides
                                 immediate CLI feedback.</p>
@@ -266,7 +266,7 @@
     run: |
       docker run --rm \
         -v ${{ github.workspace }}:/scan \
-        soldevelo/infrascancli:v1.0.3 \
+        soldevelo/infrascan:v1.0.3 \
         --fail-on high_critical">
                                         <span>Copy</span>
                                     </button>
@@ -277,7 +277,7 @@
     <span class="keyword">run:</span> |
       docker run --rm \
         -v <span class="string">${{ github.workspace }}</span>:/scan \
-        soldevelo/infrascancli<span class="variable">:v1.0.3</span> \
+        soldevelo/infrascan<span class="variable">:v1.0.3</span> \
         --fail-on <span class="string">high_critical</span></code></pre>
                             </div>
                             {% endraw %}
@@ -297,11 +297,11 @@
                                     </div>
                                     <div class="file-info">Generate audit.html</div>
                                     <button class="copy-btn-premium"
-                                        data-copy="docker run --rm -v $(pwd):/scan soldevelo/infrascancli --format html --out /scan/audit.html">
+                                        data-copy="docker run --rm -v $(pwd):/scan soldevelo/infrascan --format html --out /scan/audit.html">
                                         <span>Copy</span>
                                     </button>
                                 </div>
-                                <pre><code>docker run --rm -v $(pwd):/scan soldevelo/infrascancli \
+                                <pre><code>docker run --rm -v $(pwd):/scan soldevelo/infrascan \
   --format html --out /scan/audit.html</code></pre>
                             </div>
                         </div>

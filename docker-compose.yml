@@ -2,9 +2,12 @@ version: '3.8'
 
 services:
   backend:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: infra-scan-backend
     restart: always
+    command: web
     environment:
       - FLASK_ENV=production
       - DOCKER_HUB_USERNAME=${DOCKER_HUB_USERNAME}

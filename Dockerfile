@@ -6,12 +6,12 @@
 FROM python:3.9-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set work directory
-WORKDIR /app
+WORKDIR /opt/infrascan
 
 # Install system dependencies including Docker CLI
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and add to docker group
-RUN useradd -m appuser && chown -R appuser /app \
+RUN useradd -m appuser && chown -R appuser /opt/infrascan \
     && groupadd -f docker \
     && usermod -aG docker appuser
 
@@ -40,19 +40,21 @@ RUN mkdir -p /home/appuser/.local/bin && \
     chown -R appuser:appuser /home/appuser/.local
 
 # Install Python dependencies
-COPY --chown=appuser:appuser requirements.txt /app/
+COPY --chown=appuser:appuser requirements.txt /opt/infrascan/
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip uninstall -y pyston-lite pyston-lite-autoload || true && \
     find /usr/local/lib/python3.9/site-packages/ -name "*pyston*.pth" -delete || true
 
 # Copy project files
-COPY --chown=appuser:appuser . /app/
+COPY --chown=appuser:appuser . /opt/infrascan/
 
 # Add local bin to path for appuser
 ENV PATH="/home/appuser/.local/bin:${PATH}"
 
-# Prepare entrypoint script
-RUN chmod +x /app/entrypoint.sh && chown appuser:appuser /app/entrypoint.sh
+# Prepare entrypoint script and install CLI launcher
+RUN chmod +x /opt/infrascan/entrypoint.sh && chown appuser:appuser /opt/infrascan/entrypoint.sh && \
+    printf '#!/bin/bash\npython /opt/infrascan/cli.py "$@"\n' > /usr/local/bin/infrascan && \
+    chmod +x /usr/local/bin/infrascan
 
 # Mount point for user code when running as CLI
 VOLUME ["/scan"]
@@ -64,7 +66,7 @@ EXPOSE 5000
 USER appuser
 
 # Entrypoint handles switching between web and cli
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/opt/infrascan/entrypoint.sh"]
 
 # Default command for entrypoint (starts web app)
 CMD ["web"]

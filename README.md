@@ -2,7 +2,7 @@
 
 **Open Source IaC Cost & Security Scanner**
 
-InfraScan analyzes Infrastructure as Code to identify cost antipatterns and security issues before deployment.
+InfraScan analyzes Infrastructure as Code to identify cost antipatterns and security issues before deployment. It can be used via a friendly web UI, a standalone Python CLI or as an all‑in‑one Docker image that also exposes a simple `infrascan` executable for pipeline usage.
 
 ## 📦 Installation
 
@@ -24,7 +24,7 @@ chmod +x install_scanners.sh
 ./install_scanners.sh
 ```
 
-**Configuration**: Copy and edit `.env` file to choose container scanner:
+**Configuration**: Copy and edit the `.env` file (see `.env.example`) to choose container scanner:
 ```bash
 # Copy the example file
 cp .env.example .env
@@ -45,10 +45,10 @@ python3 app.py
 Open browser at `http://localhost:5000`
 
 **Scanner Options:**
-- **Fast**: Quick cost optimization scan (19 regex rules)
-- **Containers**: Container vulnerability scanning (Docker Scout or Grype)
-- **Checkov**: IaC Security checks only
-- **Comprehensive**: All scanners combined (Cost + Security + Containers)
+- **regex** (Fast): Quick cost optimization scan (19 regex rules)
+- **containers**: Container vulnerability scanning (Docker Scout or Grype)
+- **checkov**: IaC Security checks only
+- **comprehensive**: All scanners combined (Cost + Security + Containers)
 
 **Report Features:**
 - **Grade Cards**: Visual A-F grades for Overall, Cost, and Security
@@ -58,7 +58,14 @@ Open browser at `http://localhost:5000`
 
 ### CLI / CI/CD Usage
 
-InfraScan ships an official Docker image **`soldevelo/infrascan`** — no Python installation or dependency management needed in your pipeline.
+InfraScan provides two modes for command‑line operation:
+
+* **Standalone Python script** (after cloning the repo or installing dependencies). Run `python3 cli.py [options]` from the project root or install a virtual environment.
+* **Docker image** – the preferred way for CI/CD; the official image `soldevelo/infrascan` bundles all dependencies and scanners.
+
+> The container also installs a helper binary called `infrascan`, so if you use the image directly as your pipeline container (e.g. Bitbucket/GitLab), you can invoke the scanner without wrapping it in `docker run`.
+
+No Python installation or dependency management is required when using the Docker image.
 
 ```bash
 # Pull the image
@@ -81,7 +88,7 @@ docker run --rm -v $(pwd):/scan soldevelo/infrascan --fail-on grade_f
 ```
 
 **CLI Arguments:**
-- (positional): Directory to scan — in Docker use `/scan` (the default); locally use `.`
+- (positional): Directory to scan — in Docker use `/scan` (the default); locally use `.` (if no path is given CLI also defaults to current directory).
 - `--scanner`: `regex`, `checkov`, `containers`, `comprehensive` (default: `comprehensive`)
 - `--format`: `text`, `json`, or `html` — standalone interactive HTML report (default: `text`)
 - `--out`: Path where output file is saved (e.g. `/scan/report.html`)
@@ -89,6 +96,12 @@ docker run --rm -v $(pwd):/scan soldevelo/infrascan --fail-on grade_f
 - `--fail-on`: Exit code 1 when: `any` findings, `high_critical` findings, or `grade_f`
 
 #### GitHub Actions
+
+> **Note:** when the container image is used directly as the execution environment (e.g. in Bitbucket or GitLab pipelines), you can call the CLI binary included in `PATH` instead of invoking `docker run`:
+>
+> ```bash
+> infrascan --scanner comprehensive --format html --out infrascan-report.html
+> ```
 
 ```yaml
 name: InfraScan Security Audit

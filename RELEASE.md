@@ -27,6 +27,9 @@ Push both the `latest` tag and the specific version tag:
 ```bash
 docker push soldevelo/infrascan:latest
 docker push soldevelo/infrascan:<version>
+
+# CLI convenience
+The container now ships with a small launcher called `infrascan` placed in `/usr/local/bin`. When the image is used as the build/runtime container (for example in CI pipelines where `docker run` is not available), simply run `infrascan [options]` instead of `python /opt/infrascan/cli.py` or wrapping the image in a `docker run` command.
 ```
 
 ---

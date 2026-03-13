@@ -7,12 +7,12 @@ set -e
 # If the first argument is "cli" (legacy compatibility)
 if [ "$1" = "cli" ]; then
     shift
-    exec python /app/cli.py "$@"
+    exec python /opt/infrascan/cli.py "$@"
 fi
 
 # If the first argument looks like a CLI flag (starts with -)
 if [[ $1 == -* ]]; then
-    exec python /app/cli.py "$@"
+    exec python /opt/infrascan/cli.py "$@"
 fi
 
 # Default behavior: run as a web server

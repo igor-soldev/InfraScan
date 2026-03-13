@@ -68,5 +68,5 @@ USER appuser
 # Entrypoint handles switching between web and cli
 ENTRYPOINT ["/opt/infrascan/entrypoint.sh"]
 
-# Default command for entrypoint (starts web app)
-CMD ["web"]
+# Default command for entrypoint (starts CLI scan)
+CMD ["cli"]

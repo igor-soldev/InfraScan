@@ -2092,8 +2092,7 @@ textarea:focus {
 
 .scan-date,
 .scan-type,
-.scan-findings,
-.scan-recipient {
+.scan-findings {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;

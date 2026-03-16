@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabContents = document.querySelectorAll('.tab-content');
     const scanRepoBtn = document.getElementById('scan-repo-btn');
     const repoUrlInput = document.getElementById('repo-url');
-    const recipientInput = document.getElementById('report-recipient');
+
     const scannerTypeSelect = document.getElementById('scanner-type');
     const loading = document.getElementById('loading');
     const resultsArea = document.getElementById('results-area');
@@ -217,8 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const scanner = scannerTypeSelect.value;
-        const recipient = recipientInput ? recipientInput.value.trim() : '';
+        const recipient = '';
         const isPrivate = privateScanToggle ? privateScanToggle.checked : false;
 
         await performScan('/api/scan/github', {
@@ -505,10 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<span class="grade-pill" style="background:${color}22; border-color:${color}; color:${color}" title="${label}: ${grade.percentage}%">${label} ${grade.letter}</span>`;
         };
 
-        const scannerLabel = formatScannerName(scan.scanner_type) || scan.scanner_type || 'Unknown';
-        const recipientBadge = scan.recipient
-            ? `<span class="scan-recipient">👤 ${escapeHtml(scan.recipient)}</span>`
-            : '';
+        const recipientBadge = '';
 
         const viewUrl = `${window.location.origin}${window.location.pathname}?scan_id=${scan.id}`;
 
@@ -559,12 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </a>
                             </span>
                         </div>
-                        ${metadata.recipient ? `
-                        <div class="metadata-item">
-                            <span class="metadata-label">Report For:</span>
-                            <span class="metadata-value">${metadata.recipient}</span>
-                        </div>
-                        ` : ''}
+
                         ${metadata.scan_timestamp ? `
                         <div class="metadata-item">
                             <span class="metadata-label">Scanned:</span>

@@ -108,7 +108,7 @@ def scan_github():
     data = request.get_json()
     repo_url = data.get('url')
     scanner_type = data.get('scanner', 'regex')  # Default to regex scanner
-    recipient = data.get('recipient', '')  # Optional recipient field
+
     is_private = data.get('is_private', False)  # Optional private scan flag
     
     if not repo_url:
@@ -197,7 +197,7 @@ def scan_github():
         report_dict['metadata'].update({
             'repository_url': repo_url,
             'repository_name': repo_name,
-            'recipient': recipient,
+
             'scan_timestamp': scan_timestamp,
             'is_private': is_private
         })
@@ -211,7 +211,7 @@ def scan_github():
         cost_grade = report.cost_grade
         security_grade = report.security_grade
         container_grade = report.container_grade
-        recipient_line = f" | Recipient: {recipient}" if recipient else ""
+
         
         # Build findings summary
         findings_parts = [f"Cost {cost_findings}", f"Security {security_findings}"]
@@ -233,7 +233,7 @@ def scan_github():
             f"Grades: {grades_summary} | "
             f"Findings: {total_findings} ({findings_summary}) | "
             f"Resource count: {resource_count} | "
-            f"Scanner: {scanner_type}{recipient_line} | "
+            f"Scanner: {scanner_type} | "
             f"Time: {scan_timestamp}"
         )
         send_slack_notification(slack_message)
@@ -304,15 +304,14 @@ def save_results():
 
     metadata = data.get('metadata', {}) or {}
     repo_url = metadata.get('repository_url', 'unknown')
-    recipient = metadata.get('recipient', '')
-    recipient_line = f" | Recipient: {recipient}" if recipient else ""
+
 
     share_url = build_share_url(result_id, request)
 
     slack_message = (
         "🔗 InfraScan results shared | "
         f"Repo: {repo_url} | "
-        f"Share: {share_url}{recipient_line}"
+        f"Share: {share_url}"
     )
     send_slack_notification(slack_message)
     
@@ -380,7 +379,7 @@ def get_recent_scans():
                 'id': result_id,
                 'repository_url': repo_url,
                 'repository_name': metadata.get('repository_name') or repo_url.rstrip('/').split('/')[-1],
-                'recipient': metadata.get('recipient', ''),
+
                 'scan_timestamp': scan_timestamp,
                 'scanner_type': data.get('summary', {}).get('scanner_used', '') if data.get('summary') else '',
                 'total_findings': data.get('summary', {}).get('total', 0) if data.get('summary') else 0,

@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabContents = document.querySelectorAll('.tab-content');
     const scanRepoBtn = document.getElementById('scan-repo-btn');
     const repoUrlInput = document.getElementById('repo-url');
-    const recipientInput = document.getElementById('report-recipient');
+
     const scannerTypeSelect = document.getElementById('scanner-type');
     const loading = document.getElementById('loading');
     const resultsArea = document.getElementById('results-area');
@@ -40,6 +40,30 @@ document.addEventListener('DOMContentLoaded', () => {
     let allRecentScans = [];
     let recentScansCurrentPage = 1;
     const recentScansPageSize = 5;
+
+    // Check for CLI Injected Data (Standalone HTML Report)
+    if (window.CLI_INJECTED_DATA) {
+        const data = window.CLI_INJECTED_DATA;
+        if (scanInputContainer) scanInputContainer.style.display = 'none';
+        if (document.querySelector('.tabs')) document.querySelector('.tabs').style.display = 'none';
+        if (landingInfo) landingInfo.style.display = 'none';
+
+        const gradeReport = {
+            overall: data.overall,
+            cost: data.cost,
+            security: data.security,
+            container: data.container,
+            analysis: data.analysis
+        };
+
+        displayResults(data.results, data.summary, data.metadata, gradeReport);
+
+        // Hide elements that don't make sense in standalone report
+        if (newScanBtn) newScanBtn.style.display = 'none';
+        if (shareBtn) shareBtn.style.display = 'none';
+
+        return; // Skip normal web app initialization
+    }
 
     // Check scanner availability on load
     checkScannerStatus();
@@ -193,8 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const scanner = scannerTypeSelect.value;
-        const recipient = recipientInput ? recipientInput.value.trim() : '';
+        const recipient = '';
         const isPrivate = privateScanToggle ? privateScanToggle.checked : false;
 
         await performScan('/api/scan/github', {
@@ -481,10 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<span class="grade-pill" style="background:${color}22; border-color:${color}; color:${color}" title="${label}: ${grade.percentage}%">${label} ${grade.letter}</span>`;
         };
 
-        const scannerLabel = formatScannerName(scan.scanner_type) || scan.scanner_type || 'Unknown';
-        const recipientBadge = scan.recipient
-            ? `<span class="scan-recipient">👤 ${escapeHtml(scan.recipient)}</span>`
-            : '';
+        const recipientBadge = '';
 
         const viewUrl = `${window.location.origin}${window.location.pathname}?scan_id=${scan.id}`;
 
@@ -535,12 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </a>
                             </span>
                         </div>
-                        ${metadata.recipient ? `
-                        <div class="metadata-item">
-                            <span class="metadata-label">Report For:</span>
-                            <span class="metadata-value">${metadata.recipient}</span>
-                        </div>
-                        ` : ''}
+
                         ${metadata.scan_timestamp ? `
                         <div class="metadata-item">
                             <span class="metadata-label">Scanned:</span>
@@ -1132,51 +1147,78 @@ document.addEventListener('DOMContentLoaded', () => {
             submitFeedbackBtn.textContent = 'Submit Feedback';
         }
     });
+    // Footer Copy Logic
+    document.addEventListener('click', (e) => {
+        const copyBtn = e.target.closest('.copy-btn, .copy-btn-premium');
+        if (copyBtn) {
+            const textToCopy = copyBtn.getAttribute('data-copy');
+            if (textToCopy) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalContent = copyBtn.innerHTML;
+                    const isPremium = copyBtn.classList.contains('copy-btn-premium');
+
+                    if (isPremium) {
+                        copyBtn.innerHTML = '<span>Copied!</span>';
+                    } else {
+                        copyBtn.textContent = 'Copied!';
+                    }
+
+                    copyBtn.classList.add('success');
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalContent;
+                        copyBtn.classList.remove('success');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                });
+            }
+        }
+    });
+
+    function formatScannerName(name) {
+        if (!name) return 'Unknown';
+        if (name === 'regex') return 'Cost';
+        if (name === 'checkov') return 'Security';
+        if (name === 'both') return 'Full Audit';
+        return name;
+    }
+
+    function toggleImageCard(imageId) {
+        const content = document.getElementById(imageId);
+        const icon = document.getElementById(`${imageId}-icon`);
+
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.textContent = '▼';
+        } else {
+            content.style.display = 'none';
+            icon.textContent = '▶';
+        }
+    }
+
+    function toggleSeverityGroup(severityGroupId) {
+        const content = document.getElementById(severityGroupId);
+        const icon = document.getElementById(`${severityGroupId}-icon`);
+
+        if (content.style.display === 'none') {
+            content.style.display = 'flex';
+            icon.textContent = '▼';
+        } else {
+            content.style.display = 'none';
+            icon.textContent = '▶';
+        }
+    }
+
+    function toggleCVE(cveId) {
+        const details = document.getElementById(cveId);
+        const icon = document.getElementById(`${cveId}-icon`);
+
+        if (details.style.display === 'none') {
+            details.style.display = 'block';
+            icon.textContent = '▲';
+        } else {
+            details.style.display = 'none';
+            icon.textContent = '▼';
+        }
+    }
 });
-
-function formatScannerName(name) {
-    if (!name) return 'Unknown';
-    if (name === 'regex') return 'Cost';
-    if (name === 'checkov') return 'Security';
-    if (name === 'both') return 'Full Audit';
-    return name;
-}
-
-function toggleImageCard(imageId) {
-    const content = document.getElementById(imageId);
-    const icon = document.getElementById(`${imageId}-icon`);
-
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        icon.textContent = '▼';
-    } else {
-        content.style.display = 'none';
-        icon.textContent = '▶';
-    }
-}
-
-function toggleSeverityGroup(severityGroupId) {
-    const content = document.getElementById(severityGroupId);
-    const icon = document.getElementById(`${severityGroupId}-icon`);
-
-    if (content.style.display === 'none') {
-        content.style.display = 'flex';
-        icon.textContent = '▼';
-    } else {
-        content.style.display = 'none';
-        icon.textContent = '▶';
-    }
-}
-
-function toggleCVE(cveId) {
-    const details = document.getElementById(cveId);
-    const icon = document.getElementById(`${cveId}-icon`);
-
-    if (details.style.display === 'none') {
-        details.style.display = 'block';
-        icon.textContent = '▲';
-    } else {
-        details.style.display = 'none';
-        icon.textContent = '▼';
-    }
-}

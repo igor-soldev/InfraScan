@@ -48,7 +48,7 @@ def count_resources(path, framework='terraform'):
     
     return resource_count
 
-def scan_directory(path, scanner_type='regex', framework='terraform'):
+def scan_directory(path, scanner_type='regex', framework='terraform', download_external_modules=False):
     """
     Scan a directory for IaC issues.
     
@@ -60,6 +60,7 @@ def scan_directory(path, scanner_type='regex', framework='terraform'):
             - 'checkov': Checkov IaC security only
             - 'comprehensive': All scanners (regex + Checkov + containers)
         framework: IaC framework type (terraform, cloudformation, etc.)
+        download_external_modules: Whether to download external modules
     
     Returns:
         Tuple of (findings_list, resource_count)
@@ -100,7 +101,11 @@ def scan_directory(path, scanner_type='regex', framework='terraform'):
     if scanner_type in ['checkov', 'comprehensive']:
         if is_checkov_available():
             try:
-                checkov_results = run_checkov_scan(path, framework)
+                checkov_results = run_checkov_scan(
+                    path, 
+                    framework, 
+                    download_external_modules=download_external_modules
+                )
                 # Add scanner tag to distinguish sources
                 for result in checkov_results:
                     result['scanner'] = 'checkov'

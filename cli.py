@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+import os
+import sys
+import argparse
+import json
+import logging
+from dotenv import load_dotenv
+from scanner.parser import scan_directory
+from reporter.grading import ReportGenerator
+from reporter.html_generator import generate_standalone_html
+
+__version__ = "1.0.3"
+
+# Setup basic logging
+logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
+
+def setup_args():
+    parser = argparse.ArgumentParser(
+        description="InfraScan CLI - Open Source IaC Cost & Security Scanner"
+    )
+    
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default="/scan",
+        help="Path to the directory to scan (default: /scan when using Docker, or '.' for local use)"
+    )
+    
+    parser.add_argument(
+        "--scanner",
+        choices=["regex", "checkov", "containers", "comprehensive"],
+        default="comprehensive",
+        help="Scanner type to run (default: comprehensive)"
+    )
+    
+    parser.add_argument(
+        "--format",
+        choices=["text", "json", "html"],
+        default="text",
+        help="Output format (default: text)"
+    )
+    
+    parser.add_argument(
+        "--out",
+        help="File path to save JSON output explicitly (e.g., infrascan-report.json)"
+    )
+    
+    parser.add_argument(
+        "--fail-on",
+        choices=["any", "high_critical", "grade_f"],
+        help="Exit with error code 1 if findings match criteria (any findings, high/critical findings, or overall grade F)"
+    )
+    
+    parser.add_argument(
+        "--download-external-modules",
+        action="store_true",
+        help="Allow Checkov to download external modules (Terraform/etc)"
+    )
+    
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"InfraScan v{__version__}",
+        help="Show version information and exit"
+    )
+    
+    return parser.parse_args()
+
+def print_text_report(report_dict, resource_count, scanner_type):
+    overall = report_dict.get('overall', {})
+    metrics = report_dict.get('metadata', {})
+    results = report_dict.get('results', [])
+    
+    print("=" * 60)
+    print(f" InfraScan Report - {scanner_type.upper()} SCAN")
+    print("=" * 60)
+    print(f"Directory Scanned : {os.path.abspath(sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') else '.')}")
+    print(f"Resources Found   : {resource_count}")
+    print(f"Total Findings    : {len(results)}")
+    
+    print("-" * 60)
+    print(" GRADES")
+    print("-" * 60)
+    print(f"Overall           : {overall.get('letter', '?')} ({overall.get('percentage', 0)}%)")
+    
+    if scanner_type in ['regex', 'comprehensive']:
+        cost = report_dict.get('cost', {})
+        print(f"Cost Optimization : {cost.get('letter', '?')} ({cost.get('percentage', 0)}%)")
+        
+    if scanner_type in ['checkov', 'comprehensive']:
+        security = report_dict.get('security', {})
+        print(f"Security          : {security.get('letter', '?')} ({security.get('percentage', 0)}%)")
+        
+    if scanner_type in ['containers', 'comprehensive']:
+        containers = report_dict.get('container', {})
+        print(f"Container Security: {containers.get('letter', '?')} ({containers.get('percentage', 0)}%)")
+
+    print("=" * 60)
+    
+    if results:
+        print("\nTop Findings:")
+        for res in results[:10]: # show top 10
+            severity = res.get('severity', 'UNKNOWN').upper()
+            rule_id = res.get('rule_id', 'N/A')
+            file_path = res.get('file', 'Unknown')
+            line_str = f":{res.get('line')}" if res.get('line') else ""
+            print(f"[{severity}] {rule_id}")
+            print(f"  File: {file_path}{line_str}")
+            print(f"  Desc: {res.get('description', '')}")
+            print("-" * 40)
+            
+        if len(results) > 10:
+            print(f"... and {len(results) - 10} more findings. Use JSON format for full details.")
+
+def should_fail(args, report_dict, results):
+    if not args.fail_on:
+        return False
+        
+    if args.fail_on == 'any' and len(results) > 0:
+        print("\n[ERROR] Build failed: Findings detected and --fail-on=any specified.", file=sys.stderr)
+        return True
+        
+    if args.fail_on == 'high_critical':
+        critical_high_count = sum(1 for r in results if r.get('severity', '').lower() in ['critical', 'high'])
+        if critical_high_count > 0:
+            print(f"\n[ERROR] Build failed: {critical_high_count} high/critical findings detected and --fail-on=high_critical specified.", file=sys.stderr)
+            return True
+            
+    if args.fail_on == 'grade_f':
+        overall_letter = report_dict.get('overall', {}).get('letter', '')
+        if overall_letter == 'F':
+            print(f"\n[ERROR] Build failed: Overall grade is F and --fail-on=grade_f specified.", file=sys.stderr)
+            return True
+            
+    return False
+
+def main():
+    load_dotenv()
+    args = setup_args()
+    
+    target_path = os.path.abspath(args.path)
+    
+    if not os.path.exists(target_path):
+        print(f"Error: Path '{target_path}' does not exist.", file=sys.stderr)
+        sys.exit(1)
+        
+    try:
+        if args.format == 'text':
+            print(f"Analyzing {target_path} with '{args.scanner}' scanner...")
+            
+        # Run Scanners
+        results, resource_count, recommendations = scan_directory(
+            target_path, 
+            scanner_type=args.scanner,
+            download_external_modules=args.download_external_modules
+        )
+        
+        # Generate Report
+        report_generator = ReportGenerator()
+        report = report_generator.generate_report(
+            findings=results,
+            resource_count=resource_count,
+            scanner_type=args.scanner,
+            extra_recommendations=recommendations
+        )
+        
+        report_dict = report.to_dict()
+        report_dict['results'] = results
+        report_dict['summary'] = {
+            'total': len(results),
+            'scanner_used': args.scanner
+        }
+        
+        # Output Results
+        if args.out:
+            with open(args.out, 'w') as f:
+                json.dump(report_dict, f, indent=2)
+            if args.format == 'text':
+                print(f"Full JSON report saved to {args.out}")
+                
+        if args.format == 'json':
+            print(json.dumps(report_dict, indent=2))
+        elif args.format == 'html':
+            html_output = generate_standalone_html(report_dict)
+            if args.out:
+                with open(args.out, 'w', encoding='utf-8') as f:
+                    f.write(html_output)
+                print(f"Standalone HTML report saved to {args.out}")
+            else:
+                print(html_output)
+        else:
+            print_text_report(report_dict, resource_count, args.scanner)
+            
+        # Determine Exit Code
+        if should_fail(args, report_dict, results):
+            sys.exit(1)
+            
+        sys.exit(0)
+        
+    except Exception as e:
+        print(f"An error occurred during scanning: {e}", file=sys.stderr)
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

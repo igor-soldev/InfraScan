@@ -14,3 +14,6 @@ __pycache__
 certbot/
 scan_results/
 feedback/
+.env
+.env.*
+report.html

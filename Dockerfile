@@ -1,13 +1,17 @@
-# Use an official Python runtime as a parent image
+# InfraScan Unified Docker Image
+# This image can run as both a Web App and a CLI tool.
+# Usage (Web): docker run -p 5000:5000 soldevelo/infrascan
+# Usage (CLI): docker run -v $(pwd):/scan soldevelo/infrascan [cli-args]
+
 FROM python:3.9-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set work directory
-WORKDIR /app
+WORKDIR /opt/infrascan
 
 # Install system dependencies including Docker CLI
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,30 +29,44 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and add to docker group
-RUN useradd -m appuser && chown -R appuser /app \
+RUN useradd -m appuser && chown -R appuser /opt/infrascan \
     && groupadd -f docker \
     && usermod -aG docker appuser
-USER appuser
 
-# Install container vulnerability scanners
-# Both Docker Scout and Grype are installed - selection via CONTAINER_SCANNER env var
+# Install container vulnerability scanners (both Docker Scout and Grype)
 RUN mkdir -p /home/appuser/.local/bin && \
     curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s -- -b /home/appuser/.local/bin && \
-    curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /home/appuser/.local/bin
+    curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /home/appuser/.local/bin && \
+    chown -R appuser:appuser /home/appuser/.local
 
 # Install Python dependencies
-COPY --chown=appuser:appuser requirements.txt /app/
-RUN pip install --no-cache-dir --user -r requirements.txt
+COPY --chown=appuser:appuser requirements.txt /opt/infrascan/
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y pyston-lite pyston-lite-autoload || true && \
+    find /usr/local/lib/python3.9/site-packages/ -name "*pyston*.pth" -delete || true
 
-# Copy project
-COPY --chown=appuser:appuser . /app/
+# Copy project files
+COPY --chown=appuser:appuser . /opt/infrascan/
 
 # Add local bin to path for appuser
 ENV PATH="/home/appuser/.local/bin:${PATH}"
 
-# Expose port
+# Prepare entrypoint script and install CLI launcher
+RUN chmod +x /opt/infrascan/entrypoint.sh && chown appuser:appuser /opt/infrascan/entrypoint.sh && \
+    printf '#!/bin/bash\npython /opt/infrascan/cli.py "$@"\n' > /usr/local/bin/infrascan && \
+    chmod +x /usr/local/bin/infrascan
+
+# Mount point for user code when running as CLI
+VOLUME ["/scan"]
+
+# Default port for web mode
 EXPOSE 5000
 
-# Run the application with increased timeout for long-running scans (Docker Scout, Checkov)
-# Docker Scout can be slower than Grype, especially pulling images from registries
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "600", "--workers", "2", "app:app"]
+# Use non-root user for security
+USER appuser
+
+# Entrypoint handles switching between web and cli
+ENTRYPOINT ["/opt/infrascan/entrypoint.sh"]
+
+# Default command for entrypoint (starts CLI scan)
+CMD ["cli"]

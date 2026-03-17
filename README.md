@@ -2,7 +2,7 @@
 
 **Open Source IaC Cost & Security Scanner**
 
-InfraScan analyzes Infrastructure as Code to identify cost antipatterns and security issues before deployment.
+InfraScan analyzes Infrastructure as Code to identify cost antipatterns and security issues before deployment. It can be used via a friendly web UI, a standalone Python CLI or as an all‑in‑one Docker image that also exposes a simple `infrascan` executable for pipeline usage.
 
 ## 📦 Installation
 
@@ -24,7 +24,7 @@ chmod +x install_scanners.sh
 ./install_scanners.sh
 ```
 
-**Configuration**: Copy and edit `.env` file to choose container scanner:
+**Configuration**: Copy and edit the `.env` file (see `.env.example`) to choose container scanner:
 ```bash
 # Copy the example file
 cp .env.example .env
@@ -45,16 +45,140 @@ python3 app.py
 Open browser at `http://localhost:5000`
 
 **Scanner Options:**
-- **Fast**: Quick cost optimization scan (19 regex rules)
-- **Containers**: Container vulnerability scanning (Docker Scout or Grype)
-- **Checkov**: IaC Security checks only
-- **Comprehensive**: All scanners combined (Cost + Security + Containers)
+- **regex** (Fast): Quick cost optimization scan (19 regex rules)
+- **containers**: Container vulnerability scanning (Docker Scout or Grype)
+- **checkov**: IaC Security checks only
+- **comprehensive**: All scanners combined (Cost + Security + Containers)
 
 **Report Features:**
 - **Grade Cards**: Visual A-F grades for Overall, Cost, and Security
 - **Risk Assessment**: Low to Critical risk levels
 - **Severity Breakdown**: High/Medium/Low issue counts
 - **Smart Recommendations**: Actionable next steps based on your findings
+
+### CLI / CI/CD Usage
+
+InfraScan provides two modes for command‑line operation:
+
+* **Standalone Python script** (after cloning the repo or installing dependencies). Run `python3 cli.py [options]` from the project root or install a virtual environment.
+* **Docker image** – the preferred way for CI/CD; the official image `soldevelo/infrascan` bundles all dependencies and scanners.
+
+> The container also installs a helper binary called `infrascan`, so if you use the image directly as your pipeline container (e.g. Bitbucket/GitLab), you can invoke the scanner without wrapping it in `docker run`.
+
+No Python installation or dependency management is required when using the Docker image.
+
+```bash
+# Pull the image
+docker pull soldevelo/infrascan:latest
+
+# Scan current directory and print results (text)
+docker run --rm -v $(pwd):/scan soldevelo/infrascan
+
+# Generate a standalone interactive HTML report
+docker run --rm -v $(pwd):/scan soldevelo/infrascan --format html --out /scan/report.html
+
+# Generate a JSON artifact
+docker run --rm -v $(pwd):/scan soldevelo/infrascan --format json --out /scan/report.json
+
+# Fail CI if high or critical findings exist
+docker run --rm -v $(pwd):/scan soldevelo/infrascan --scanner comprehensive --fail-on high_critical
+
+# Fail CI if overall grade is F
+docker run --rm -v $(pwd):/scan soldevelo/infrascan --fail-on grade_f
+```
+
+**CLI Arguments:**
+- (positional): Directory to scan — in Docker use `/scan` (the default); locally use `.` (if no path is given CLI also defaults to current directory).
+- `--scanner`: `regex`, `checkov`, `containers`, `comprehensive` (default: `comprehensive`)
+- `--format`: `text`, `json`, or `html` — standalone interactive HTML report (default: `text`)
+- `--out`: Path where output file is saved (e.g. `/scan/report.html`)
+- `--download-external-modules`: Allow Checkov to download external modules (Terraform/etc)
+- `--fail-on`: Exit code 1 when: `any` findings, `high_critical` findings, or `grade_f`
+
+#### GitHub Actions
+
+> **Note:** when the container image is used directly as the execution environment (e.g. in Bitbucket or GitLab pipelines), you can call the CLI binary included in `PATH` instead of invoking `docker run`:
+>
+> ```bash
+> infrascan --scanner comprehensive --format html --out infrascan-report.html
+> ```
+
+```yaml
+name: InfraScan Security Audit
+on: [push, pull_request]
+
+jobs:
+  infrascan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run InfraScan
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/scan \
+            soldevelo/infrascan:latest \
+            --scanner comprehensive \
+            --format html \
+            --out /scan/infrascan-report.html \
+            --fail-on high_critical
+
+      - name: Upload HTML Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infrascan-report
+          path: infrascan-report.html
+```
+
+#### GitLab CI
+
+```yaml
+infrascan:
+  image: docker:27
+  stage: test
+  services:
+    - docker:27-dind
+  script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/scan
+        soldevelo/infrascan:latest
+        --scanner comprehensive
+        --format html
+        --out /scan/infrascan-report.html
+        --fail-on high_critical
+  artifacts:
+    when: always
+    paths:
+      - infrascan-report.html
+    expire_in: 1 week
+```
+
+#### Bitbucket Pipelines
+
+```yaml
+pipelines:
+  default:
+    - step:
+        name: InfraScan Audit
+        script:
+          - docker run --rm
+              -v $BITBUCKET_CLONE_DIR:/scan
+              soldevelo/infrascan:latest
+              --scanner comprehensive
+              --format html
+              --out /scan/infrascan-report.html
+              --fail-on high_critical
+        artifacts:
+          - infrascan-report.html
+```
+
+> **Building images locally** (contributors):
+> ```bash
+> # Build unified image
+> docker build -t soldevelo/infrascan .
+> ```
+
 
 ## 📊 Grading System
 

@@ -57,7 +57,18 @@ header {
     /* Back to center for better overall feel */
     justify-content: center;
     gap: 0.75rem;
-    margin-bottom: 0.15rem;
+    margin-bottom: 1.25rem;
+}
+
+.github-stars-badge {
+    display: flex;
+    align-items: center;
+    transition: transform 0.2s ease;
+    margin-left: 0.5rem;
+}
+
+.github-stars-badge:hover {
+    transform: scale(1.05);
 }
 
 .soldevelo-brand {
@@ -1085,6 +1096,17 @@ footer {
 
 .footer-feedback {
     margin-bottom: 0.5rem;
+}
+
+.github-stars-badge-footer {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 0.5rem;
+    transition: transform 0.2s ease;
+}
+
+.github-stars-badge-footer:hover {
+    transform: scale(1.1) rotate(2deg);
 }
 
 footer a {

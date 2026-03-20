@@ -29,6 +29,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const feedbackContact = document.getElementById('feedback-contact');
     let selectedRating = 0;
 
+    // Newsletter Elements
+    const newsletterModal = document.getElementById('newsletter-modal');
+    const closeNewsletterBtn = document.getElementById('close-newsletter-btn');
+    const subscribeBtn = document.getElementById('subscribe-btn');
+    const newsletterEmail = document.getElementById('newsletter-email');
+    const newsletterConsent = document.getElementById('newsletter-consent');
+
     let currentResults = null;
     let currentSummary = null;
     let currentMetadata = null;
@@ -68,6 +75,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check scanner availability on load
     checkScannerStatus();
     loadSharedResults();
+
+    // Trigger Newsletter Modal after 3 seconds if not already closed
+    if (!localStorage.getItem('newsletter_closed') && !window.location.search.includes('scan_id')) {
+        setTimeout(() => {
+            if (newsletterModal) newsletterModal.classList.remove('hidden');
+        }, 3000);
+    }
 
     async function checkScannerStatus() {
         try {
@@ -1219,5 +1233,58 @@ document.addEventListener('DOMContentLoaded', () => {
             details.style.display = 'none';
             icon.textContent = '▼';
         }
+    }
+
+    // Newsletter Event Listeners
+    if (closeNewsletterBtn) {
+        closeNewsletterBtn.onclick = () => {
+            newsletterModal.classList.add('hidden');
+            localStorage.setItem('newsletter_closed', 'true');
+        };
+    }
+
+    if (subscribeBtn) {
+        subscribeBtn.onclick = async () => {
+            const email = newsletterEmail.value.trim();
+            const consent = newsletterConsent.checked;
+
+            if (!email || !email.includes('@')) {
+                showToast('Please enter a valid email address');
+                return;
+            }
+
+            if (!consent) {
+                showToast('Please agree to the consent terms');
+                return;
+            }
+
+            subscribeBtn.disabled = true;
+            subscribeBtn.textContent = 'Subscribing...';
+
+            try {
+                const response = await fetch('/api/subscribe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast(data.message || 'Thank you for subscribing!', 'success');
+                    newsletterModal.classList.add('hidden');
+                    localStorage.setItem('newsletter_closed', 'true');
+                } else {
+                    throw new Error(data.error || 'Subscription failed');
+                }
+            } catch (e) {
+                showToast(e.message || 'Subscription failed. Please try again.');
+            } finally {
+                subscribeBtn.disabled = false;
+                subscribeBtn.innerHTML = '<span>✉️</span> Subscribe Now';
+            }
+        };
     }
 });

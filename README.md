@@ -180,6 +180,16 @@ pipelines:
 > ```
 
 
+## 🐳 Advanced Container Scanning
+
+InfraScan supports advanced container scanning features:
+- **Environment Variables**: You can use variables in your `docker-compose.yml` image names (e.g., `image: ${REGISTRY}/my-app:${TAG}`). Both `$VAR` and `${VAR:-default}` syntax are supported. Variables are expanded using the environment where InfraScan is running (including your `.env` file).
+- **Private Registries**:
+  - **Docker Hub**: Set `DOCKER_HUB_USERNAME` and `DOCKER_HUB_PASSWORD` in your environment or `.env` file for automatic authentication.
+  - **Amazon ECR**: InfraScan automatically detects ECR images and attempts authentication using `aws ecr get-login-password`. This requires the AWS CLI to be installed and configured with appropriate credentials in the environment.
+  - **Other Registries**: Pre-authenticate manually using `docker login` before running InfraScan, and it will use your existing local Docker credentials.
+
+
 ## 📊 Grading System
 
 InfraScan provides four separate grades:

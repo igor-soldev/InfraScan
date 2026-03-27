@@ -18,6 +18,8 @@ import subprocess
 from typing import List, Dict, Any, Tuple, Optional
 
 
+from scanner.image_utils import find_compose_files, extract_images_from_compose, perform_all_logins
+
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -59,7 +61,7 @@ def extract_fix_version_from_text(text: str) -> Optional[str]:
     fix_match = re.search(r'Fixed version\s*:\s*([^\s]+)', text, re.IGNORECASE)
     if fix_match:
         version = fix_match.group(1)
-        # Filter out non-version strings (not, none, n/a, unavailable, etc.)
+        # Filter out non-version strings (not, none, n/a, na, unavailable, etc.)
         invalid_versions = {'not', 'none', 'n/a', 'na', 'unavailable', 'unknown', 'null'}
         if version.lower() in invalid_versions:
             return None
@@ -203,9 +205,6 @@ def create_finding_dict(
 # ============================================================================
 # Docker CLI Helpers
 # ============================================================================
-# ============================================================================
-# Docker CLI Helpers
-# ============================================================================
 
 def is_docker_scout_available() -> bool:
     """Check if Docker Scout is installed and available."""
@@ -236,42 +235,6 @@ def cleanup_image(image: str) -> None:
         print(f"  Warning: Failed to remove {image}: {e}")
 
 
-def docker_login() -> bool:
-    """
-    Authenticate with Docker Hub if credentials are provided.
-    
-    Returns:
-        True if login successful or already logged in, False otherwise
-    """
-    username = os.getenv('DOCKER_HUB_USERNAME', '').strip()
-    password = os.getenv('DOCKER_HUB_PASSWORD', '').strip()
-    
-    if not username or not password:
-        print("Warning: Docker Hub credentials not provided. Docker Scout may require authentication.")
-        print("Set DOCKER_HUB_USERNAME and DOCKER_HUB_PASSWORD in .env file.")
-        return False
-    
-    try:
-        # Use --password-stdin for security
-        result = subprocess.run(
-            ["docker", "login", "-u", username, "--password-stdin"],
-            input=password,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        if result.returncode == 0:
-            print("✓ Docker Hub authentication successful")
-            return True
-        else:
-            print(f"Warning: Docker Hub login failed: {result.stderr[:200]}")
-            return False
-    except Exception as e:
-        print(f"Warning: Docker Hub login error: {e}")
-        return False
-
-
 # ============================================================================
 # Main Scanning Functions
 # ============================================================================
@@ -293,9 +256,6 @@ def run_docker_scout_scan(directory_path: str) -> Tuple[List[Dict[str, Any]], Li
             "Docker Scout is not installed. Install it with: curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --"
         )
     
-    # Authenticate with Docker Hub (required for Docker Scout)
-    docker_login()
-    
     findings = []
     extra_recommendations = []
     scanned_images = set()  # Cache to avoid scanning same image multiple times
@@ -312,43 +272,45 @@ def run_docker_scout_scan(directory_path: str) -> Tuple[List[Dict[str, Any]], Li
     
     print(f"Found {len(compose_files)} Docker Compose file(s) to scan")
     
-    # Extract images from compose files and scan them
+    # Collect ALL images from ALL compose files first
+    all_images_map = {} # image -> compose_file
     for compose_file in compose_files:
         images = extract_images_from_compose(compose_file)
-        
         for image in images:
-            # Skip if already scanned
-            if image in scanned_images:
-                print(f"Skipping already scanned image: {image}")
-                continue
-            
-            scanned_images.add(image)
-            
-            # Check if image exists locally before scanning
-            image_existed_before = check_image_exists(image)
-            
-            print(f"Scanning image: {image}")
-            
-            try:
-                image_findings = scan_image(image, compose_file, directory_path)
-                findings.extend(image_findings)
-                if image_findings:
-                    print(f"  Found {len(image_findings)} vulnerabilities in {image}")
-                else:
-                    print(f"  No vulnerabilities found or image unavailable: {image}")
+            if image not in all_images_map:
+                all_images_map[image] = compose_file
+    
+    # Authenticate with registries (collecting all unique images first)
+    if all_images_map:
+        perform_all_logins(list(all_images_map.keys()))
+    
+    # Scan collected images
+    for image, compose_file in all_images_map.items():
+        # Check if image exists locally before scanning
+        image_existed_before = check_image_exists(image)
+        
+        print(f"Scanning image: {image}")
+        
+        try:
+            image_findings = scan_image(image, compose_file, directory_path)
+            findings.extend(image_findings)
+            if image_findings:
+                print(f"  Found {len(image_findings)} vulnerabilities in {image}")
+            else:
+                print(f"  No vulnerabilities found or image unavailable: {image}")
 
-                recommendation = get_image_recommendation(image)
-                if recommendation and recommendation not in extra_recommendations:
-                    extra_recommendations.append(recommendation)
-                    print(f"  Added recommendation for Bitnami image: {image}")
+            recommendation = get_image_recommendation(image)
+            if recommendation and recommendation not in extra_recommendations:
+                extra_recommendations.append(recommendation)
+                print(f"  Added recommendation for Bitnami image: {image}")
+            
+            # Track for cleanup if image was pulled during scan and cleanup is enabled
+            if cleanup_enabled and not image_existed_before and check_image_exists(image):
+                images_to_cleanup.add(image)
                 
-                # Track for cleanup if image was pulled during scan and cleanup is enabled
-                if cleanup_enabled and not image_existed_before and check_image_exists(image):
-                    images_to_cleanup.add(image)
-                    
-            except Exception as e:
-                print(f"Warning: Failed to scan image {image}: {e}")
-                continue
+        except Exception as e:
+            print(f"Warning: Failed to scan image {image}: {e}")
+            continue
     
     # Cleanup images that were pulled during scan
     if cleanup_enabled and images_to_cleanup:
@@ -360,38 +322,6 @@ def run_docker_scout_scan(directory_path: str) -> Tuple[List[Dict[str, Any]], Li
                 print(f"Warning: Failed to cleanup image {image}: {e}")
     
     return findings, extra_recommendations
-
-
-def find_compose_files(directory_path: str) -> List[str]:
-    """Find Docker Compose files in the directory."""
-    compose_files = []
-    compose_patterns = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml']
-    
-    for root, dirs, files in os.walk(directory_path):
-        for file in files:
-            if file in compose_patterns or file.startswith('docker-compose'):
-                compose_files.append(os.path.join(root, file))
-    
-    return compose_files
-
-
-def extract_images_from_compose(compose_file: str) -> List[str]:
-    """Extract Docker image names from a compose file."""
-    images = []
-    
-    try:
-        import yaml
-        with open(compose_file, 'r') as f:
-            compose_data = yaml.safe_load(f)
-        
-        if compose_data and 'services' in compose_data:
-            for service_name, service_config in compose_data['services'].items():
-                if isinstance(service_config, dict) and 'image' in service_config:
-                    images.append(service_config['image'])
-    except Exception as e:
-        print(f"Warning: Could not parse {compose_file}: {e}")
-    
-    return images
 
 
 def scan_image(image: str, compose_file: str, base_path: str) -> List[Dict[str, Any]]:

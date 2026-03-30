@@ -4,6 +4,7 @@ import tempfile
 import uuid
 import json
 import time
+import datetime
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from urllib.parse import urlparse
 import requests
@@ -21,7 +22,13 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 app.config['RESULTS_DIR'] = os.path.join(os.getcwd(), 'scan_results')
-app.config['FEEDBACK_FILE'] = os.path.join(os.getcwd(), 'feedback', 'reviews.json')
+app.config['DATA_DIR'] = os.path.join(os.getcwd(), 'data')
+app.config['FEEDBACK_FILE'] = os.path.join(app.config['DATA_DIR'], 'feedback.json')
+app.config['SUBSCRIBERS_FILE'] = os.path.join(app.config['DATA_DIR'], 'subscribers.json')
+
+# Create directories if they don't exist
+os.makedirs(app.config['RESULTS_DIR'], exist_ok=True)
+os.makedirs(app.config['DATA_DIR'], exist_ok=True)
 app.config['SLACK_WEBHOOK_URL'] = os.getenv('SLACK_WEBHOOK_URL', '')
 
 # Cache busting - changes on each deployment/restart
@@ -317,13 +324,13 @@ def save_results():
     
     return jsonify({'id': result_id})
 
-@app.route('/api/results/<result_id>', methods=['GET'])
-def get_results(result_id):
-    # Basic validation of result_id to prevent path traversal
-    if not result_id.replace('-', '').isalnum():
-        return jsonify({'error': 'Invalid result ID'}), 400
+@app.route('/api/results/<scan_id>', methods=['GET'])
+def get_results(scan_id):
+    # Security: basic path traversal protection
+    if '..' in scan_id or '/' in scan_id or '\\' in scan_id or not scan_id.replace('-', '').isalnum():
+        return jsonify({'error': 'Invalid scan ID'}), 400
         
-    file_path = os.path.join(app.config['RESULTS_DIR'], f"{result_id}.json")
+    file_path = os.path.join(app.config['RESULTS_DIR'], f"{scan_id}.json")
     
     if not os.path.exists(file_path):
         return jsonify({'error': 'Results not found'}), 404
@@ -438,6 +445,48 @@ def submit_feedback():
     except Exception as e:
         print(f"Error saving feedback: {str(e)}")
         return jsonify({'error': f"Failed to save feedback: {str(e)}"}), 500
+
+@app.route('/api/subscribe', methods=['POST'])
+def subscribe_newsletter():
+    data = request.get_json()
+    if not data or not data.get('email'):
+        return jsonify({'error': 'Email is required'}), 400
+    
+    email = data.get('email').strip()
+    
+    subscriber_node = {
+        'id': str(uuid.uuid4()),
+        'email': email,
+        'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
+        'subscribed_via': 'web-modal'
+    }
+
+    try:
+        subscribers = []
+        if os.path.exists(app.config['SUBSCRIBERS_FILE']):
+            with open(app.config['SUBSCRIBERS_FILE'], 'r') as f:
+                try:
+                    subscribers = json.load(f)
+                except json.JSONDecodeError:
+                    subscribers = []
+        
+        # Check if email already exists
+        if any(s['email'] == email for s in subscribers):
+             return jsonify({'message': 'Already subscribed!'}), 200
+
+        subscribers.append(subscriber_node)
+        
+        with open(app.config['SUBSCRIBERS_FILE'], 'w') as f:
+            json.dump(subscribers, f, indent=4)
+        
+        # Send Slack notification if configured
+        if app.config['SLACK_WEBHOOK_URL']:
+            send_slack_notification(f"✉️ New Newsletter Subscriber: *{email}*")
+
+        return jsonify({'message': 'Subscribed successfully'}), 200
+    except Exception as e:
+        print(f"Error in subscription: {str(e)}")
+        return jsonify({'error': 'Failed to complete subscription'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

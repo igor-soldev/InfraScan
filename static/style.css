@@ -57,7 +57,18 @@ header {
     /* Back to center for better overall feel */
     justify-content: center;
     gap: 0.75rem;
-    margin-bottom: 0.15rem;
+    margin-bottom: 1.25rem;
+}
+
+.github-stars-badge {
+    display: flex;
+    align-items: center;
+    transition: transform 0.2s ease;
+    margin-left: 0.5rem;
+}
+
+.github-stars-badge:hover {
+    transform: scale(1.05);
 }
 
 .soldevelo-brand {
@@ -1087,6 +1098,17 @@ footer {
     margin-bottom: 0.5rem;
 }
 
+.github-stars-badge-footer {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 0.5rem;
+    transition: transform 0.2s ease;
+}
+
+.github-stars-badge-footer:hover {
+    transform: scale(1.1) rotate(2deg);
+}
+
 footer a {
     color: var(--text-muted);
     text-decoration: none;
@@ -1421,6 +1443,98 @@ select option:disabled {
 
 .star:hover {
     transform: scale(1.1);
+}
+
+/* Newsletter Checkbox styling */
+.newsletter-form {
+    margin-top: 1.5rem;
+}
+
+.checkbox-group {
+    margin-top: 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+.checkbox-group:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(99, 102, 241, 0.2);
+    transform: translateY(-1px);
+}
+
+.custom-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+    color: var(--text-muted);
+}
+
+.custom-checkbox input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.checkmark {
+    position: relative;
+    height: 20px;
+    width: 20px;
+    min-width: 20px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    flex-shrink: 0;
+    margin-top: 3px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-checkbox:hover input~.checkmark {
+    border-color: rgba(99, 102, 241, 0.5);
+    background-color: rgba(99, 102, 241, 0.05);
+}
+
+.custom-checkbox input:checked~.checkmark {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+    left: 6px;
+    top: 2px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2.5px 2.5px 0;
+    transform: rotate(45deg);
+}
+
+.custom-checkbox input:checked~.checkmark:after {
+    display: block;
+}
+
+.checkbox-text {
+    line-height: 1.5;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    transition: color 0.2s;
+}
+
+.custom-checkbox:hover .checkbox-text {
+    color: var(--text-main);
 }
 
 textarea {

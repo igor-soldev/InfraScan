@@ -10,6 +10,8 @@ import os
 import subprocess
 from typing import List, Dict, Any
 
+from scanner.image_utils import find_compose_files, extract_images_from_compose, perform_all_logins
+
 # Check if Grype is available
 def is_grype_available() -> bool:
     """Check if Grype is installed and available."""
@@ -48,51 +50,28 @@ def run_grype_scan(directory_path: str) -> List[Dict[str, Any]]:
     if not compose_files:
         return findings
     
-    # Extract images from compose files and scan them
+    # Collect ALL images from ALL compose files first
+    all_images_map = {} # image -> compose_file
     for compose_file in compose_files:
         images = extract_images_from_compose(compose_file)
-        
         for image in images:
-            try:
-                image_findings = scan_image(image, compose_file, directory_path)
-                findings.extend(image_findings)
-            except Exception as e:
-                print(f"Warning: Failed to scan image {image}: {e}")
-                continue
+            if image not in all_images_map:
+                all_images_map[image] = compose_file
+                
+    # Perform logins for ECR/Docker Hub if needed
+    if all_images_map:
+        perform_all_logins(list(all_images_map.keys()))
+        
+    # Extract images from compose files and scan them
+    for image, compose_file in all_images_map.items():
+        try:
+            image_findings = scan_image(image, compose_file, directory_path)
+            findings.extend(image_findings)
+        except Exception as e:
+            print(f"Warning: Failed to scan image {image}: {e}")
+            continue
     
     return findings
-
-
-def find_compose_files(directory_path: str) -> List[str]:
-    """Find Docker Compose files in the directory."""
-    compose_files = []
-    compose_patterns = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml']
-    
-    for root, dirs, files in os.walk(directory_path):
-        for file in files:
-            if file in compose_patterns or file.startswith('docker-compose'):
-                compose_files.append(os.path.join(root, file))
-    
-    return compose_files
-
-
-def extract_images_from_compose(compose_file: str) -> List[str]:
-    """Extract Docker image names from a compose file."""
-    images = []
-    
-    try:
-        import yaml
-        with open(compose_file, 'r') as f:
-            compose_data = yaml.safe_load(f)
-        
-        if compose_data and 'services' in compose_data:
-            for service_name, service_config in compose_data['services'].items():
-                if isinstance(service_config, dict) and 'image' in service_config:
-                    images.append(service_config['image'])
-    except Exception as e:
-        print(f"Warning: Could not parse {compose_file}: {e}")
-    
-    return images
 
 
 def scan_image(image: str, compose_file: str, base_path: str) -> List[Dict[str, Any]]:

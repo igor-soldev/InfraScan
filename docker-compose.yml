@@ -17,7 +17,7 @@ services:
       - CLEANUP_SCANNED_IMAGES=${CLEANUP_SCANNED_IMAGES:-true}
     volumes:
       - ./static:/opt/infrascan/static
-      - ./feedback:/opt/infrascan/feedback
+      - ./data:/opt/infrascan/data
       - ./scan_results:/opt/infrascan/scan_results
       - /var/run/docker.sock:/var/run/docker.sock  # Docker socket for Docker Scout scanning
     networks:

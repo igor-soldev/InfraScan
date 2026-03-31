@@ -187,6 +187,7 @@ InfraScan supports advanced container scanning features:
 - **Private Registries**:
   - **Docker Hub**: Set `DOCKER_HUB_USERNAME` and `DOCKER_HUB_PASSWORD` in your environment or `.env` file for automatic authentication.
   - **Amazon ECR**: InfraScan automatically detects ECR images and attempts authentication using `aws ecr get-login-password`. This requires the AWS CLI to be installed and configured with appropriate credentials in the environment.
+  - **Intelligent Fallback**: If Docker Scout is not authenticated, InfraScan will automatically run a fallback scan using **Grype** so your pipeline never fails due to missing Docker Hub tokens.
   - **Other Registries**: Pre-authenticate manually using `docker login` before running InfraScan, and it will use your existing local Docker credentials.
 
 

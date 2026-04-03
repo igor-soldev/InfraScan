@@ -28,9 +28,8 @@ def setup_args():
     
     parser.add_argument(
         "--scanner",
-        choices=["regex", "checkov", "containers", "comprehensive"],
         default="comprehensive",
-        help="Scanner type to run (default: comprehensive)"
+        help="Scanner type(s) to run (default: comprehensive). Support multiple scanners separated by comma (e.g., 'regex,containers'). Options: regex, checkov, containers, comprehensive"
     )
     
     parser.add_argument(
@@ -47,8 +46,9 @@ def setup_args():
     
     parser.add_argument(
         "--fail-on",
-        choices=["any", "high_critical", "grade_f"],
-        help="Exit with error code 1 if findings match criteria (any findings, high/critical findings, or overall grade F)"
+        choices=["any", "high_critical", "grade_a", "grade_b", "grade_c", "grade_d", "grade_f",
+                 "priority_critical", "priority_high", "priority_medium", "priority_low", "priority_info"],
+        help="Exit with error code 1 if findings match criteria (any findings, high/critical findings, grade threshold, or priority threshold)"
     )
     
     parser.add_argument(
@@ -126,10 +126,33 @@ def should_fail(args, report_dict, results):
             print(f"\n[ERROR] Build failed: {critical_high_count} high/critical findings detected and --fail-on=high_critical specified.", file=sys.stderr)
             return True
             
-    if args.fail_on == 'grade_f':
-        overall_letter = report_dict.get('overall', {}).get('letter', '')
-        if overall_letter == 'F':
-            print(f"\n[ERROR] Build failed: Overall grade is F and --fail-on=grade_f specified.", file=sys.stderr)
+    if args.fail_on.startswith('grade_'):
+        grade_order = ['A', 'B', 'C', 'D', 'F']
+        fail_grade = args.fail_on.split('_')[1].upper()
+        overall_letter = report_dict.get('overall', {}).get('letter', 'A')
+        
+        try:
+            fail_idx = grade_order.index(fail_grade)
+            current_idx = grade_order.index(overall_letter)
+            
+            if current_idx >= fail_idx:
+                print(f"\n[ERROR] Build failed: Overall grade is {overall_letter} and --fail-on={args.fail_on} specified (threshold: {fail_grade} or worse).", file=sys.stderr)
+                return True
+        except ValueError:
+            pass # Should not happen due to argparse choices
+            
+    if args.fail_on.startswith('priority_'):
+        severity_weights = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1, 'info': 0.5}
+        fail_priority = args.fail_on.split('_')[1]
+        threshold_weight = severity_weights.get(fail_priority, 0)
+        
+        findings_at_or_above = [
+            r for r in results 
+            if severity_weights.get(r.get('severity', 'info').lower(), 0.5) >= threshold_weight
+        ]
+        
+        if findings_at_or_above:
+            print(f"\n[ERROR] Build failed: {len(findings_at_or_above)} findings with priority {fail_priority} or higher detected and --fail-on={args.fail_on} specified.", file=sys.stderr)
             return True
             
     return False
